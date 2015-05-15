@@ -1,0 +1,24 @@
+{
+  "name": "broccoli-grouped-filter",
+  "version": "0.0.1",
+  "description": "Similar to broccoli-filter (caching the output of individual files), but processes all files in a batch instead of individually.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:timmfin/broccoli-grouped-filter.git"
+  },
+  "keywords": [
+    "broccoli"
+  ],
+  "author": "tfinley@hubspot.com",
+  "bugs": {
+    "url": "https://github.com/timmfin/broccoli-grouped-filter/issues"
+  },
+  "homepage": "https://github.com/timmfin/broccoli-grouped-filter",
+  "dependencies": {
+    "broccoli-filter": "git://github.com/timmfin/broccoli-filter.git#broccoli-persistent-filter"
+  }
+}
