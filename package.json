@@ -19,6 +19,6 @@
   },
   "homepage": "https://github.com/timmfin/broccoli-grouped-filter",
   "dependencies": {
-    "broccoli-filter": "git://github.com/timmfin/broccoli-filter.git#broccoli-persistent-filter"
+    "broccoli-filter": "git://github.com/timmfin/broccoli-filter.git#broccoli-persistent-filter-with-symlinked-dirs",
   }
 }
