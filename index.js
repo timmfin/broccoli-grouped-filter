@@ -1,4 +1,10 @@
+var path = require('path');
 var Filter = require('broccoli-filter');
+var mkdirp = require('mkdirp')
+var walkSync = require('walk-sync')
+var mapSeries = require('promise-map-series')
+var symlinkOrCopySync = require('symlink-or-copy').sync
+
 
 
 module.exports = GroupedFilter
@@ -18,6 +24,7 @@ GroupedFilter.prototype.rebuild = function () {
   var self = this
 
   this.filesToProcessInBatch = [];
+  this.cacheInfosOfFilesToProcess = [];
 
   var paths = walkSync(this.inputPath);
 
@@ -34,12 +41,20 @@ GroupedFilter.prototype.rebuild = function () {
       }
     }
   }).then(function() {
-    return self.processFilesInBatch(srcDir, destDir, this.filesToProcessInBatch);
+    return self.processFilesInBatch(self.inputPath, self.cachePath, self.filesToProcessInBatch);
+  }).then(function (cacheInfo) {
+    self.symlinkOrCopyAllProcessedFilesToOutput(self.outputPath, self.filesToProcessInBatch, self.cacheInfosOfFilesToProcess);
+  }).then(function() {
+    return self.outputPath;
   })
 }
 
 GroupedFilter.prototype.processFilesInBatch = function (srcDir, destDir, filesToProcess) {
   throw new Error("Need to implement processFilesInBatch()");
+}
+
+GroupedFilter.prototype.buildCacheInfoFor = function(srcDir, relativePath) {
+  throw new Error("Need to implement buildCacheInfoFor (note, must return an object with inputFiles and outputFiles keys)");
 }
 
 GroupedFilter.prototype.canProcessFile = function (relativePath) {
@@ -60,8 +75,6 @@ GroupedFilter.prototype.processFile = function (srcDir, destDir, relativePath) {
   var self = this
   return Promise.resolve(self.buildCacheInfoFor(srcDir, relativePath))
     .then(function (cacheInfo) {
-      this.filesToProcessInBatch.push(relativePath);
-
       if (!cacheInfo) {
         throw new Error("No cachInfo returned from buildCacheInfoFor(" + relativePath + "). It is required");
       }
@@ -74,10 +87,86 @@ GroupedFilter.prototype.processFile = function (srcDir, destDir, relativePath) {
         throw new Error("cachInfo returned from buildCacheInfoFor(" + relativePath + ") was missing outputFiles. You must manually specifiy the outputFiles for each processed file.");
       }
 
+      self.filesToProcessInBatch.push(relativePath);
+      self.cacheInfosOfFilesToProcess.push(cacheInfo);
+
       return cacheInfo;
     })
 }
 
+GroupedFilter.prototype.symlinkOrCopyAllProcessedFilesToOutput = function (destDir, filesToProcess, cacheInfosOfFilesToProcess) {
+  for (var i = 0; i < filesToProcess.length; i++) {
+    var fileToProcess = filesToProcess[i],
+        cacheInfo = cacheInfosOfFilesToProcess[i];
+
+    this.symlinkOrCopyToOutput(fileToProcess, cacheInfo);
+  }
+}
+
+GroupedFilter.prototype.symlinkOrCopyToOutput = function (relativePath, cacheInfo) {
+  var cacheEntry = {
+    inputFiles: (cacheInfo || {}).inputFiles,
+    outputFiles: (cacheInfo || {}).outputFiles
+  }
+
+  for (var i = 0; i < cacheEntry.outputFiles.length; i++) {
+    symlinkOrCopySync(
+      this.cachePath + '/' + cacheEntry.outputFiles[i],
+      this.outputPath + '/' + cacheEntry.outputFiles[i])
+  }
+  cacheEntry.hash = this.hashEntry(this.inputPath, this.outputPath, cacheEntry)
+  this._cache[relativePath] = cacheEntry
+}
+
+// To do: Get rid of the srcDir/destDir args because we now have inputPath/outputPath
+// https://github.com/search?q=processAndCacheFile&type=Code&utf8=%E2%9C%93
+
+GroupedFilter.prototype.processAndCacheFile = function (srcDir, destDir, relativePath) {
+  var self = this
+
+  this._cache = this._cache || {}
+  var cacheEntry = this._cache[relativePath]
+  var persistedCacheEntry = this._persistedCache && this._persistedCache[relativePath]
+
+  // First look in the in-memory cache and then look in the persistent cache on disk
+  // (later during cleanup, the in-memory cache will be merged with the persistent
+  // cache on the filesystem)
+
+  if (cacheEntry != null && cacheEntry.hash === self.hashEntry(srcDir, destDir, cacheEntry)) {
+    symlinkOrCopyFromCache(cacheEntry, self.cachePath)
+  } else if (persistedCacheEntry != null && persistedCacheEntry.hash === self.hashEntry(srcDir, destDir, persistedCacheEntry)) {
+    symlinkOrCopyFromCache(persistedCacheEntry, self.persistedCachePath)
+  } else {
+    return Promise.resolve()
+      .then(function () {
+        return self.processFile(srcDir, self.cachePath, relativePath)
+      })
+      .catch(function (err) {
+        // Augment for helpful error reporting
+        err.broccoliInfo = err.broccoliInfo || {}
+        err.broccoliInfo.file = path.join(srcDir, relativePath)
+        // Compatibility
+        if (err.line != null) err.broccoliInfo.firstLine = err.line
+        if (err.column != null) err.broccoliInfo.firstColumn = err.column
+        throw err
+      })
+  }
+
+  function symlinkOrCopyFromCache (cacheEntry, cachePath) {
+    for (var i = 0; i < cacheEntry.outputFiles.length; i++) {
+      var cachedRelativePath = cacheEntry.outputFiles[i]
+      var dest = destDir + '/' + cachedRelativePath
+
+      mkdirp.sync(path.dirname(dest))
+      // We may be able to link as an optimization here, because we control
+      // the cache directory; we need to be 100% sure though that we don't try
+      // to hardlink symlinks, as that can lead to directory hardlinks on OS X
+      symlinkOrCopySync(
+        cachePath + '/' + cachedRelativePath, dest)
+    }
+  }
+
+}
 
 GroupedFilter.prototype.getDestFilePath = function (relativePath) {
   throw new Error("getDestFilePath shoudn't be used in broccoli-grouped-filter")

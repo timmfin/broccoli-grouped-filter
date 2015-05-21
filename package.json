@@ -20,5 +20,9 @@
   "homepage": "https://github.com/timmfin/broccoli-grouped-filter",
   "dependencies": {
     "broccoli-filter": "git://github.com/timmfin/broccoli-filter.git#broccoli-persistent-filter-with-symlinked-dirs",
+    "mkdirp": "^0.5.1",
+    "promise-map-series": "^0.2.1",
+    "symlink-or-copy": "^1.0.1",
+    "walk-sync": "^0.1.3"
   }
 }
