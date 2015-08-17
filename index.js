@@ -24,7 +24,6 @@ GroupedFilter.prototype.rebuild = function () {
   var self = this
 
   this.filesToProcessInBatch = [];
-  this.cacheInfosOfFilesToProcess = [];
 
   var paths = walkSync(this.inputPath);
 
@@ -42,19 +41,15 @@ GroupedFilter.prototype.rebuild = function () {
     }
   }).then(function() {
     return self.processFilesInBatch(self.inputPath, self.cachePath, self.filesToProcessInBatch);
-  }).then(function (cacheInfo) {
-    self.symlinkOrCopyAllProcessedFilesToOutput(self.outputPath, self.filesToProcessInBatch, self.cacheInfosOfFilesToProcess);
+  }).then(function (cacheInfosOfFilesToProcess) {
+    self.symlinkOrCopyAllProcessedFilesToOutput(self.outputPath, self.filesToProcessInBatch, cacheInfosOfFilesToProcess);
   }).then(function() {
     return self.outputPath;
   })
 }
 
 GroupedFilter.prototype.processFilesInBatch = function (srcDir, destDir, filesToProcess) {
-  throw new Error("Need to implement processFilesInBatch()");
-}
-
-GroupedFilter.prototype.buildCacheInfoFor = function(srcDir, relativePath) {
-  throw new Error("Need to implement buildCacheInfoFor (note, must return an object with inputFiles and outputFiles keys)");
+  throw new Error("Need to implement processFilesInBatch(). Note, must return a cacheInfosOfFilesToProcess array (array of objects with inputFiles and outputFiles keys)");
 }
 
 GroupedFilter.prototype.canProcessFile = function (relativePath) {
@@ -73,25 +68,7 @@ GroupedFilter.prototype.hasDesiredExtension = function (relativePath) {
 
 GroupedFilter.prototype.processFile = function (srcDir, destDir, relativePath) {
   var self = this
-  return Promise.resolve(self.buildCacheInfoFor(srcDir, relativePath))
-    .then(function (cacheInfo) {
-      if (!cacheInfo) {
-        throw new Error("No cachInfo returned from buildCacheInfoFor(" + relativePath + "). It is required");
-      }
-
-      if (!cacheInfo.inputFiles) {
-        throw new Error("cachInfo returned from buildCacheInfoFor(" + relativePath + ") was missing inputFiles. You must manually specifiy the inputFiles for each processed file.");
-      }
-
-      if (!cacheInfo.outputFiles) {
-        throw new Error("cachInfo returned from buildCacheInfoFor(" + relativePath + ") was missing outputFiles. You must manually specifiy the outputFiles for each processed file.");
-      }
-
-      self.filesToProcessInBatch.push(relativePath);
-      self.cacheInfosOfFilesToProcess.push(cacheInfo);
-
-      return cacheInfo;
-    })
+  self.filesToProcessInBatch.push(relativePath);
 }
 
 GroupedFilter.prototype.symlinkOrCopyAllProcessedFilesToOutput = function (destDir, filesToProcess, cacheInfosOfFilesToProcess) {
