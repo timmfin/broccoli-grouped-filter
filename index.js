@@ -1,5 +1,5 @@
 var path = require('path');
-var Filter = require('broccoli-filter');
+var Filter = require('broccoli-persistent-filter');
 var mkdirp = require('mkdirp')
 var walkSync = require('walk-sync')
 var mapSeries = require('promise-map-series')
@@ -15,12 +15,12 @@ function GroupedFilter (inputTree, options) {
 
 // Prototyping this as a sub-class of broccoli-filter. However, in the long run
 // this probably should just copy out the methods it needs (they way it relies on
-// and pastes over existing methids is a bit gross)
+// and pastes over existing methods is a bit gross)
 GroupedFilter.prototype = Object.create(Filter.prototype);
 GroupedFilter.prototype.constructor = GroupedFilter;
 
 
-GroupedFilter.prototype.rebuild = function () {
+GroupedFilter.prototype.build = function () {
   var self = this
 
   this.filesToProcessInBatch = [];
@@ -43,9 +43,7 @@ GroupedFilter.prototype.rebuild = function () {
     return self.processFilesInBatch(self.inputPath, self.cachePath, self.filesToProcessInBatch);
   }).then(function (cacheInfosOfFilesToProcess) {
     self.symlinkOrCopyAllProcessedFilesToOutput(self.outputPath, self.filesToProcessInBatch, cacheInfosOfFilesToProcess);
-  }).then(function() {
-    return self.outputPath;
-  })
+  });
 }
 
 GroupedFilter.prototype.processFilesInBatch = function (srcDir, destDir, filesToProcess) {
